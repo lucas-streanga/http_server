@@ -11,15 +11,15 @@ CXX = g++
 EXE = http_server
 
 HFILES = include/socket.h include/request.h
-CFLAGS = -O2
-LDFLAGS =
+CFLAGS = -O2 -std=c++17
+LDFLAGS = -lpthread
 INCDIR = -Iinclude
 
 
 all : $(EXE)
 
 $(EXE) : $(OBJ1) $(OBJ2) $(OBJ3)
-	$(CXX) -o $(EXE) $(LDFLAGS) $(OBJ1) $(OBJ2) $(OBJ3)
+	$(CXX) -o $(EXE)  $(OBJ1) $(OBJ2) $(OBJ3) $(LDFLAGS)
 
 $(OBJ1) : $(SRC1) $(HFILES)
 	$(CXX) $(INCDIR) -c $(CFLAGS) $(SRC1) -o $(OBJ1)
