@@ -1,15 +1,14 @@
 #include<iostream>
 #include<string>
-#include"../include/socket.h"
-#include"../include/request.h"
+#include"socket.h"
+#include"request.h"
 #include<thread>
 #include<vector>
+#include<memory>
 
 /*
  * Main method, where socket will be listening
  * argc and argv are used, such that the user may specify a port number
- *
- *
  */
 int main(int argc, char ** argv)
 {
@@ -18,7 +17,7 @@ int main(int argc, char ** argv)
     //As only positive values up to 65535 are valid
     unsigned short port = 6789;
     //Our ServerSocket. We'll init it later...
-    ServerSocket server_socket;
+    std::unique_ptr<ServerSocket> server_socket;
     //Threadpool to hold all our neat threads
     std::vector<std::thread> threadpool;
 
@@ -35,7 +34,7 @@ int main(int argc, char ** argv)
     std::cout << "Listening port set to " << port << '\n';
 
     //Create the server socket
-    try { server_socket.init(port); }
+    try { server_socket = std::make_unique<ServerSocket>(port); }
     catch (SocketException & e)
     {
         std::cerr << e.what() << std::endl;
@@ -47,7 +46,7 @@ int main(int argc, char ** argv)
     {
         Socket client_socket;
         std::cout << "Awaiting connection..." << std::endl;
-        try { client_socket = server_socket.accept(); }
+        try { client_socket = server_socket->accept(); }
         catch (SocketException & e)
         {
             std::cerr << e.what() << std::endl;

@@ -6,13 +6,15 @@
 
 #include<iostream>
 #include<sys/socket.h>
-#include <netinet/in.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <unistd.h>
+#include<netinet/in.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<sys/socket.h>
+#include<unistd.h>
 #include<exception>
+#include<vector>
+
 
 //Class wrappers for sockets. Makes it easier to deal with them in main and makes their lifetimes more well-defined
 
@@ -32,6 +34,7 @@ public:
 class Socket
 {
     friend class ServerSocket;
+    static const std::size_t buffer_size = 8192;
     //Socket Descriptor. Important!
     int socketd;
     //We need to hang onto these too
@@ -45,6 +48,7 @@ public:
     Socket(const Socket &) = default;
     void close();
     std::string read() noexcept(false);
+    void write(std::byte *, std::size_t);
     void write(const std::string &) noexcept(false);
 
     //returns the address as human-readable
@@ -67,10 +71,8 @@ class ServerSocket
 
 public:
     //This can throw if the socket can't be binded
-    ServerSocket() = default;
-    void init(unsigned short port) noexcept(false);
+    ServerSocket(unsigned short port) noexcept(false);
     Socket accept() noexcept(false);
-
 
     //we can close the socket here (very convenient)
     ~ServerSocket();

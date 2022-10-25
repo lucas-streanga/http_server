@@ -7,6 +7,4 @@
 
 void process_request(Socket client_socket);
 
-
-
 #endif

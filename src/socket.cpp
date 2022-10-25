@@ -1,6 +1,7 @@
-#include"../include/socket.h"
-#include <arpa/inet.h>
+#include"socket.h"
+#include<arpa/inet.h>
 #include<iostream>
+#include<memory>
 
 
 //Just returns the address as a human readable string
@@ -19,12 +20,25 @@ void Socket::close()
 
 //read syscall from socket descriptor (like file descriptor)
 //This function can throw!
+//I chose 8kb for the buffer size as this is the max Apache web server will read for headers
+//Why not buffered reader? The read syscall will use zero to close the socket,
+//and we have no way of knowing how long the header lines can be
 std::string Socket::read()
 {
-    char buffer[1024] = {};
-    ::read(socketd, (void *) buffer, sizeof(buffer) - 1);
+    char * buffer = new char[buffer_size];
+    int len;
+    len = ::read(socketd, (void *) buffer, buffer_size - 1);
 
-    return std::string(buffer);
+    //0 indicates connection closed, -1 indicates an error
+    if(len <= 0)
+        throw SocketException("socket read failed");
+
+    //Add in a null terminator. Read will not guarantee a null terminator
+    buffer[len] = 0;
+    std::string ret(buffer);
+    delete [] buffer;
+
+    return ret;
 }
 
 
@@ -32,12 +46,25 @@ std::string Socket::read()
 //This function can throw!
 void Socket::write(const std::string & str)
 {
-   send(socketd, (void * ) str.c_str(), strlen(str.c_str()) + 1, 0);
+    int err = ::write(socketd, (void * ) str.c_str(), strlen(str.c_str()));
+    if(err < 0)
+        throw SocketException("socket write failed");
 }
+
+//write syscall to socket descriptor (like file descriptor)
+//This function can throw!
+void Socket::write(std::byte * buffer, std::size_t size)
+{
+    int err = ::write(socketd, (void * ) buffer, size);
+    if(err < 0)
+        throw SocketException("socket write failed");
+}
+
+
 //Initialize the server socket.
 //Mostly lower-level c library functions to sort it out
 //We also bind and listen here. Neither functions can block! Accept is the function that blocks
-void ServerSocket::init(unsigned short port)
+ServerSocket::ServerSocket(unsigned short port)
 {
     //opt will be set to 1
     opt = 1;
