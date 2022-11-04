@@ -1,15 +1,18 @@
+/*
+ * Lucas Streanga
+ * 1001612558
+ */
 #include"request.h"
 #include<thread>
 #include<sstream>
 #include<string>
 #include<fstream>
+#include"file_cache.h"
+#include"shared_buffer.h"
 
 const char * CRLF = "\r\n";
 
-/* Because threads work differently in C++ vs Java, I just used functions here instead of a class
- *
- *
- */
+/* Because threads work differently in C++ vs Java, I just used functions here instead of a class*/
 
 //Interestingly, C++ doesn't have an ends with function until C++20
 //will return true if the string str ends with any of the ending strings
@@ -25,6 +28,7 @@ bool ends_with(const std::string & str, std::initializer_list<std::string> endin
     return false;
 }
 
+//Gives the content type from the filename
 std::string content_type(const std::string & filename)
 {
     if(ends_with(filename, {"htm", "html"}))
@@ -41,28 +45,11 @@ std::string content_type(const std::string & filename)
         return "text/javascript";
     else
         return "application/octet-stream";
-
-}
-
-std::vector<unsigned char> bin_data(const std::string & str)
-{
-    std::vector<unsigned char> ret(str.length());
-    for(auto c: str)
-        ret.push_back(c);
-    return ret;
-}
-
-std::vector<unsigned char> bin_cat(std::initializer_list<const std::vector<unsigned char>> bins)
-{
-    std::vector<unsigned char> ret;
-    for(auto bin: bins)
-        ret.insert(ret.end(), bin.begin(), bin.end());
-    return ret;
 }
 
 void process_request(Socket sock)
 {
-    //std::cout is actually thread safe, provided you have ONE cout statement
+    //std::cout is actually thread safe
     //multiple cout statements can cause them to become jumbled across threads...
 
     bool file_exists = true;
@@ -77,7 +64,10 @@ void process_request(Socket sock)
     std::string test;
 
     //lets create a buffer and zero it out...
-    std::string content = sock.read();
+    std::string content;
+    try{ content = sock.read(); }
+    catch( SocketException & e) { std::cerr << "Processing request failed: " << e.what(); sock.close(); return; }
+
     //scratch space string
     std::string scratch;
     //Extract the request line from the content and put it in a stringstream so its easy to parse
@@ -90,31 +80,40 @@ void process_request(Socket sock)
 
     //try to open the file
     //open in binary mode to get raw bytes, necessary for things like images
-    file.open(filename, std::ios::binary);
+    if(filename != ".")
+        file.open(filename, std::ios::binary);
     if(!file.is_open())
         file_exists = false;
 
-    std::cout << content_type(filename) << std::endl;
+    std::cout << "\nNew connection (address " << sock.get_address() << ") established on thread ID " << std::this_thread::get_id()
+    << "\n**Request: " << request.str() << std::endl;
+
     if(file_exists)
     {
         status_line = "HTTP/1.0 200 OK";
         content_type_line = "Content-Type: " + content_type(filename) + "; charset=utf-8";
+        //shared_buffer<std::byte> buffer;
+        std::size_t size;
 
         //This just gets the size of the file
         file.seekg(0, std::ios::end);
-        std::streamsize size = file.tellg();
+        size = file.tellg();
         file.seekg(0, std::ios::beg);
 
         //read file into buffer
-        std::byte * buffer = new std::byte[size];
-        file.read((char *) buffer, size);
+        //buffer = shared_buffer<std::byte>(new std::byte[size], size);
+        std::shared_ptr<std::byte []> buffer(new std::byte[size]);
+
+        file.read((char *) buffer.get(), size);
 
         content_length_line = "Content-Length: " + std::to_string(size) + CRLF + "Connection: close";
         //write the headers
-        sock.write(status_line + CRLF + content_length_line + CRLF + content_type_line + CRLF + CRLF);
+        try{ sock.write(status_line + CRLF + content_length_line + CRLF + content_type_line + CRLF + CRLF); }
+        catch( SocketException & e) { std::cerr << "Processing request failed: " << e.what(); sock.close(); return; }
+
         //Now we write the file contents...
-        sock.write(buffer, size);
-        delete [] buffer;
+        try{ sock.write(buffer, size); }
+        catch( SocketException & e) { std::cerr << "Processing request failed: " << e.what(); sock.close(); return; }
     }
     else
     {
@@ -123,14 +122,11 @@ void process_request(Socket sock)
         content_type_line = "Content-Type: text/html; charset=utf-8";
         content_length_line = "Content-Length: " + std::to_string(entity_body_line.length()) + CRLF + "Connection: close";
 
-        sock.write(status_line + CRLF + content_length_line + CRLF + content_type_line + CRLF + CRLF + entity_body_line);
+        try{ sock.write(status_line + CRLF + content_length_line + CRLF + content_type_line + CRLF + CRLF + entity_body_line); }
+        catch( SocketException & e) { std::cerr << "Processing request failed: " << e.what(); sock.close(); return; }
     }
 
-
-    //std::cout << status_line + CRLF + content_length_line + CRLF + content_type_line + CRLF + CRLF + entity_body_line << std::endl;
-
-    std::cout << "New connection (address " << sock.get_address() << ") established on thread ID " << std::this_thread::get_id()
-    << "\n****CONTENT****\nRequest: " << "\nFile " << filename << " Exists? " << file_exists << std::endl;
+    std::cout << "**Response headers:\n" << status_line << '\n' << content_type_line << '\n' << content_length_line << std::endl;
 
     sock.close();
 }

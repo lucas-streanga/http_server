@@ -10,7 +10,7 @@ CXX = g++
 
 EXE = http_server
 
-HFILES = include/socket.h include/request.h
+HFILES = include/socket.h include/request.h include/signal_handler.h
 CFLAGS = -O2 -std=c++17
 LDFLAGS = -lpthread
 INCDIR = -Iinclude
